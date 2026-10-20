@@ -1,33 +1,29 @@
 #!/usr/bin/env bash
 # WireGuard install (Debian/Ubuntu): install tools, write /etc/wireguard/wg-home.conf
-# from CLI base64 of a FULL .conf, emit wg-up.sh / wg-down.sh beside this script.
+# from CLI base64 of a FULL .conf, sync install + wg-up/down into a fixed user dir.
 # No IP addresses, keys, or endpoints are hard-coded in this repository.
 #
-# Recommended (download then run — keeps $0 so companions land next to the script):
+# Fixed dir: $WG_SETUP_DIR or ${XDG_DATA_HOME:-$HOME/.local/share}/wg-setup
+#
+# From GitHub (download to /tmp, then sync into fixed dir):
 #   curl -fsSL https://raw.githubusercontent.com/devlink123/wg-setup/main/install-wg-home.sh \
 #     -o /tmp/install-wg-home.sh \
 #     && bash /tmp/install-wg-home.sh "$(base64 -w0 /path/to/wg.conf)" \
-#     && /tmp/wg-up.sh
+#     && ~/.local/share/wg-setup/wg-up.sh
 #
-# Local:
-#   ./install-wg-home.sh '<base64-of-full-conf>'
-#   echo '<base64>' | ./install-wg-home.sh -
+# From fixed dir later:
+#   ~/.local/share/wg-setup/install-wg-home.sh "$(base64 -w0 /path/to/wg.conf)"
+#   ~/.local/share/wg-setup/wg-up.sh
+#   ~/.local/share/wg-setup/wg-down.sh
 set -euo pipefail
 NAME=wg-home
-
-# Prefer directory of this script file so companions sit beside it (/tmp when downloaded there).
-# Fall back to $WG_SETUP_DIR or $HOME/wg-setup only when run via stdin / curl|bash.
-if [[ -n "${BASH_SOURCE[0]:-}" && "${BASH_SOURCE[0]}" != "bash" && -f "${BASH_SOURCE[0]}" ]]; then
-  DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-else
-  DIR="${WG_SETUP_DIR:-$HOME/wg-setup}"
-  mkdir -p "$DIR"
-fi
+DIR="${WG_SETUP_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/wg-setup}"
+mkdir -p "$DIR"
 
 B64="${1:-}"
 if [[ "$B64" == "-h" || "$B64" == "--help" ]]; then
   echo "Usage: $0 '<base64-of-full-wg-conf>' | $0 -" >&2
-  echo "  curl -fsSL …/install-wg-home.sh -o /tmp/install-wg-home.sh && bash /tmp/install-wg-home.sh \"\$(base64 -w0 conf)\" && /tmp/wg-up.sh" >&2
+  echo "Syncs scripts into: $DIR (override with WG_SETUP_DIR)" >&2
   exit 1
 fi
 if [[ "$B64" == "-" || -z "$B64" ]]; then
@@ -68,6 +64,18 @@ sudo cp "$DECODED" "/etc/wireguard/$NAME.conf"
 sudo chmod 600 "/etc/wireguard/$NAME.conf"
 echo "Wrote /etc/wireguard/${NAME}.conf (mode 600)"
 
+# Always sync install + companions into the fixed dir (GitHub re-run overwrites / updates).
+if [[ -n "${BASH_SOURCE[0]:-}" && -f "${BASH_SOURCE[0]}" ]]; then
+  SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
+  cp "$SRC" "$DIR/install-wg-home.sh"
+else
+  # Piped run: try to fetch self from GitHub into fixed dir (best-effort).
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL https://raw.githubusercontent.com/devlink123/wg-setup/main/install-wg-home.sh \
+      -o "$DIR/install-wg-home.sh" || true
+  fi
+fi
+
 cat > "$DIR/wg-up.sh" <<'UP'
 #!/usr/bin/env bash
 # Connect the wg-home WireGuard tunnel
@@ -94,5 +102,8 @@ else
   echo "wg-home is not up"
 fi
 DOWN
-chmod +x "$DIR/wg-up.sh" "$DIR/wg-down.sh"
-echo "Installed. Connect: $DIR/wg-up.sh   Disconnect: $DIR/wg-down.sh"
+chmod +x "$DIR/install-wg-home.sh" "$DIR/wg-up.sh" "$DIR/wg-down.sh"
+echo "Synced under $DIR"
+echo "  install: $DIR/install-wg-home.sh"
+echo "  connect: $DIR/wg-up.sh"
+echo "  disconnect: $DIR/wg-down.sh"
