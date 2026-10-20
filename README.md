@@ -28,6 +28,7 @@ curl -fsSL https://raw.githubusercontent.com/devlink123/wg-setup/main/install-wg
 
 - `curl | bash -s -- '…'` 传入 base64（单引号，避免 `+`/`/` 被壳吃掉）
 - 缺工具时 `apt` 安装 `wireguard-tools`、`iproute2`、`iputils-ping`
+- conf 含 `DNS=` 且没有 `resolvconf` 命令时，再装 `openresolv`（没有该包则装 `resolvconf`）。已有则跳过。`wg-quick` 处理 `DNS=` 会调用 `resolvconf`，缺了会以 127 退出并回滚接口
 - 配置写入 `/etc/wireguard/wg-home.conf`（权限 `600`）
 - 把 `install-wg-home.sh` / `wg-up.sh` / `wg-down.sh` **同步进** `$HOME/.local/share/wg-setup`（覆盖更新）
 

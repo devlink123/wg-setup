@@ -41,16 +41,37 @@ if ! grep -qE '^\[Peer\]' "$DECODED"; then
   exit 3
 fi
 
-need_pkgs=0
-command -v wg-quick >/dev/null 2>&1 || need_pkgs=1
-command -v ip >/dev/null 2>&1 || need_pkgs=1
-command -v ping >/dev/null 2>&1 || need_pkgs=1
-if [[ "$need_pkgs" -eq 1 ]]; then
-  echo "Installing wireguard-tools / iproute2 / ping…"
+pkgs=()
+command -v wg-quick >/dev/null 2>&1 || pkgs+=(wireguard-tools)
+command -v ip >/dev/null 2>&1 || pkgs+=(iproute2)
+command -v ping >/dev/null 2>&1 || pkgs+=(iputils-ping)
+
+# wg-quick execs `resolvconf` when DNS= is set. A missing command exits 127
+# and rolls the interface back. openresolv and resolvconf both provide it;
+# install one only when that command is not already on the system.
+need_dns=0
+if grep -qiE '^[[:space:]]*DNS[[:space:]]*=' "$DECODED" \
+  && ! command -v resolvconf >/dev/null 2>&1 \
+  && [[ ! -x /usr/sbin/resolvconf && ! -x /sbin/resolvconf ]]; then
+  need_dns=1
+fi
+
+if [[ ${#pkgs[@]} -gt 0 || "$need_dns" -eq 1 ]]; then
   sudo apt-get update
-  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y wireguard-tools iproute2 iputils-ping
+  if [[ "$need_dns" -eq 1 ]]; then
+    if apt-cache show openresolv >/dev/null 2>&1; then
+      pkgs+=(openresolv)
+    elif apt-cache show resolvconf >/dev/null 2>&1; then
+      pkgs+=(resolvconf)
+    else
+      echo "error: conf sets DNS= but neither openresolv nor resolvconf is available" >&2
+      exit 1
+    fi
+  fi
+  echo "Installing ${pkgs[*]}…"
+  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y "${pkgs[@]}"
 else
-  echo "wireguard-tools already present — skip apt"
+  echo "required packages already present — skip apt"
 fi
 
 sudo mkdir -p /etc/wireguard && sudo chmod 700 /etc/wireguard
