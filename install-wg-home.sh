@@ -5,10 +5,9 @@
 #
 # Install dir is fixed in this script: $HOME/.local/share/wg-setup
 #
-# From GitHub:
-#   curl -fsSL https://raw.githubusercontent.com/devlink123/wg-setup/main/install-wg-home.sh \
-#     -o /tmp/install-wg-home.sh \
-#     && bash /tmp/install-wg-home.sh 'PASTE_BASE64_HERE' \
+# From GitHub (pipe OK — companions always land in the fixed dir):
+#   set -o pipefail
+#   curl -fsSL https://raw.githubusercontent.com/devlink123/wg-setup/main/install-wg-home.sh | bash -s -- 'PASTE_BASE64_HERE' \
 #     && ~/.local/share/wg-setup/wg-up.sh
 set -euo pipefail
 NAME=wg-home
