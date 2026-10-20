@@ -56,8 +56,30 @@ if grep -qiE '^[[:space:]]*DNS[[:space:]]*=' "$DECODED" \
   need_dns=1
 fi
 
+# Retry transient apt/network failures (mirror HTTP 500, timeouts, dpkg lock).
+# A missing package is permanent: fail on that immediately instead of retrying.
+apt_try() {
+  local attempt rc out
+  for attempt in 1 2 3; do
+    if out="$("$@" 2>&1)"; then
+      [[ -n "$out" ]] && printf '%s\n' "$out"
+      return 0
+    fi
+    rc=$?
+    [[ -n "$out" ]] && printf '%s\n' "$out" >&2
+    if printf '%s\n' "$out" | grep -qiE 'unable to locate package|no installation candidate'; then
+      return "$rc"
+    fi
+    if [[ "$attempt" -eq 3 ]]; then
+      return "$rc"
+    fi
+    echo "apt failed (attempt ${attempt}/3); retrying in $((attempt * 2))s…" >&2
+    sleep $((attempt * 2))
+  done
+}
+
 if [[ ${#pkgs[@]} -gt 0 || "$need_dns" -eq 1 ]]; then
-  sudo apt-get update
+  apt_try sudo apt-get update
   if [[ "$need_dns" -eq 1 ]]; then
     if apt-cache show openresolv >/dev/null 2>&1; then
       pkgs+=(openresolv)
@@ -69,7 +91,7 @@ if [[ ${#pkgs[@]} -gt 0 || "$need_dns" -eq 1 ]]; then
     fi
   fi
   echo "Installing ${pkgs[*]}…"
-  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y "${pkgs[@]}"
+  apt_try sudo DEBIAN_FRONTEND=noninteractive apt-get install -y "${pkgs[@]}"
 else
   echo "required packages already present — skip apt"
 fi
