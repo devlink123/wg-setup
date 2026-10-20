@@ -1,29 +1,24 @@
 #!/usr/bin/env bash
 # WireGuard install (Debian/Ubuntu): install tools, write /etc/wireguard/wg-home.conf
-# from CLI base64 of a FULL .conf, sync install + wg-up/down into a fixed user dir.
+# from CLI base64 of a FULL .conf, sync install + wg-up/down into a fixed dir.
 # No IP addresses, keys, or endpoints are hard-coded in this repository.
 #
-# Fixed dir: $WG_SETUP_DIR or ${XDG_DATA_HOME:-$HOME/.local/share}/wg-setup
+# Install dir is fixed in this script: $HOME/.local/share/wg-setup
 #
-# From GitHub (download to /tmp, then sync into fixed dir):
+# From GitHub:
 #   curl -fsSL https://raw.githubusercontent.com/devlink123/wg-setup/main/install-wg-home.sh \
 #     -o /tmp/install-wg-home.sh \
-#     && bash /tmp/install-wg-home.sh "$(base64 -w0 /path/to/wg.conf)" \
+#     && bash /tmp/install-wg-home.sh 'PASTE_BASE64_HERE' \
 #     && ~/.local/share/wg-setup/wg-up.sh
-#
-# From fixed dir later:
-#   ~/.local/share/wg-setup/install-wg-home.sh "$(base64 -w0 /path/to/wg.conf)"
-#   ~/.local/share/wg-setup/wg-up.sh
-#   ~/.local/share/wg-setup/wg-down.sh
 set -euo pipefail
 NAME=wg-home
-DIR="${WG_SETUP_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/wg-setup}"
+DIR="$HOME/.local/share/wg-setup"
 mkdir -p "$DIR"
 
 B64="${1:-}"
 if [[ "$B64" == "-h" || "$B64" == "--help" ]]; then
   echo "Usage: $0 '<base64-of-full-wg-conf>' | $0 -" >&2
-  echo "Syncs scripts into: $DIR (override with WG_SETUP_DIR)" >&2
+  echo "Scripts sync to: $DIR" >&2
   exit 1
 fi
 if [[ "$B64" == "-" || -z "$B64" ]]; then
@@ -64,12 +59,10 @@ sudo cp "$DECODED" "/etc/wireguard/$NAME.conf"
 sudo chmod 600 "/etc/wireguard/$NAME.conf"
 echo "Wrote /etc/wireguard/${NAME}.conf (mode 600)"
 
-# Always sync install + companions into the fixed dir (GitHub re-run overwrites / updates).
 if [[ -n "${BASH_SOURCE[0]:-}" && -f "${BASH_SOURCE[0]}" ]]; then
   SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
   cp "$SRC" "$DIR/install-wg-home.sh"
 else
-  # Piped run: try to fetch self from GitHub into fixed dir (best-effort).
   if command -v curl >/dev/null 2>&1; then
     curl -fsSL https://raw.githubusercontent.com/devlink123/wg-setup/main/install-wg-home.sh \
       -o "$DIR/install-wg-home.sh" || true
