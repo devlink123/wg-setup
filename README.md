@@ -1,52 +1,35 @@
-# wg-home — WireGuard one-shot install (Debian/Ubuntu)
+# wg-home — WireGuard 一行安装（Debian/Ubuntu）
 
-从命令行传入 **整份 WireGuard `.conf` 的 base64**，安装工具、写入 `/etc/wireguard/wg-home.conf`，并生成连接/断开脚本。
+从 GitHub **下载脚本到本地再执行**（不要先 clone）。传入整份 WireGuard `.conf` 的 base64，完成装包、写配置、生成连接脚本并可立刻连上。
 
-本仓库脚本内 **不含** 私钥、公钥、Endpoint 或内网地址；配置一律由调用方 base64 传入。
+本仓库脚本内 **不含** 私钥、公钥、Endpoint 或内网地址。
 
-## 依赖
+## 一行安装 + 配置 + 连接
 
-- Debian / Ubuntu（使用 `apt-get`）
-- `sudo` 权限（写 `/etc/wireguard`、执行 `wg-quick`）
-
-## 准备配置
-
-1. 准备一份完整的 `wg-home.conf`（至少含 `[Interface]` 与 `[Peer]`）。
-2. 编码为单行 base64（不要把明文私钥贴进聊天/仓库）：
+把 `/path/to/wg.conf` 换成你的完整配置路径：
 
 ```bash
-base64 -w0 wg-home.conf
-# macOS:
-# base64 < wg-home.conf | tr -d '\n'
+curl -fsSL https://raw.githubusercontent.com/devlink123/wg-setup/main/install-wg-home.sh -o /tmp/install-wg-home.sh && bash /tmp/install-wg-home.sh "$(base64 -w0 /path/to/wg.conf)" && /tmp/wg-up.sh
 ```
 
-## 安装
+macOS 把 `base64 -w0` 换成 `base64 < /path/to/wg.conf | tr -d '\n'`。
+
+说明：
+
+- 先落到 `/tmp` 再跑，避免 `curl|bash` 时 `$0` 丢目录、写不出旁边的 `wg-up.sh`
+- 缺工具时 `apt` 安装 `wireguard-tools`、`iproute2`、`iputils-ping`
+- 配置写入 `/etc/wireguard/wg-home.conf`（权限 `600`）
+- 同目录生成 `wg-up.sh`、`wg-down.sh`（上例即 `/tmp/`）
+
+只装不连：去掉末尾的 `&& /tmp/wg-up.sh`。
+
+## 断开
 
 ```bash
-chmod +x install-wg-home.sh
-./install-wg-home.sh '<整份conf的base64>'
+/tmp/wg-down.sh
 ```
 
-或从 stdin：
-
-```bash
-echo '<整份conf的base64>' | ./install-wg-home.sh -
-```
-
-安装脚本会：
-
-- 若缺少 `wg-quick` / `ip` / `ping`，则 `apt` 安装 `wireguard-tools`、`iproute2`、`iputils-ping`
-- 将解码后的配置写入 `/etc/wireguard/wg-home.conf`（权限 `600`）
-- 在同目录生成（或覆盖）`wg-up.sh`、`wg-down.sh`
-
-## 连接 / 断开
-
-```bash
-./wg-up.sh      # wg-quick up wg-home；若已存在冲突的 wg0 会先尝试 down
-./wg-down.sh    # wg-quick down wg-home
-```
-
-`wg-up.sh` 的 `wg show` 输出会隐藏 private / preshared key。
+`wg-up.sh` 的 `wg show` 会隐藏 private / preshared key。
 
 ## 验收建议
 
@@ -57,14 +40,21 @@ sudo wg show wg-home   # 应有 latest handshake；勿把私钥贴到日志
 
 ## 安全注意
 
-- 只把 **整份 conf 的 base64** 交给本脚本；不要把私钥写进本仓库。
-- 不要提交 `/etc/wireguard/*.conf` 或含密钥的运行报告。
-- 分享仓库前确认脚本与 README 中无真实 IP / 密钥。
+- 只把 **整份 conf 的 base64** 交给脚本；密钥不上仓库。
+- Shell 历史可能留下 base64；用完注意清理。
+- 不要提交 `/etc/wireguard/*.conf`。
+
+## 可选：已克隆本仓库时
+
+```bash
+./install-wg-home.sh "$(base64 -w0 /path/to/wg.conf)"
+./wg-up.sh
+```
 
 ## 文件
 
 | 文件 | 说明 |
 |------|------|
-| `install-wg-home.sh` | 从 base64 安装并写出 up/down 脚本 |
-| `wg-up.sh` | 连接 `wg-home`（安装后也会再生成一份） |
-| `wg-down.sh` | 断开 `wg-home` |
+| `install-wg-home.sh` | 安装入口（base64 → conf + 旁路生成 up/down） |
+| `wg-up.sh` | 仓库内参考副本；安装时写到脚本同目录 |
+| `wg-down.sh` | 同上 |

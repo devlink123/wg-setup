@@ -3,16 +3,31 @@
 # from CLI base64 of a FULL .conf, emit wg-up.sh / wg-down.sh beside this script.
 # No IP addresses, keys, or endpoints are hard-coded in this repository.
 #
-# Usage:
+# Recommended (download then run — keeps $0 so companions land next to the script):
+#   curl -fsSL https://raw.githubusercontent.com/devlink123/wg-setup/main/install-wg-home.sh \
+#     -o /tmp/install-wg-home.sh \
+#     && bash /tmp/install-wg-home.sh "$(base64 -w0 /path/to/wg.conf)" \
+#     && /tmp/wg-up.sh
+#
+# Local:
 #   ./install-wg-home.sh '<base64-of-full-conf>'
 #   echo '<base64>' | ./install-wg-home.sh -
 set -euo pipefail
 NAME=wg-home
-DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# Prefer directory of this script file so companions sit beside it (/tmp when downloaded there).
+# Fall back to $WG_SETUP_DIR or $HOME/wg-setup only when run via stdin / curl|bash.
+if [[ -n "${BASH_SOURCE[0]:-}" && "${BASH_SOURCE[0]}" != "bash" && -f "${BASH_SOURCE[0]}" ]]; then
+  DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+else
+  DIR="${WG_SETUP_DIR:-$HOME/wg-setup}"
+  mkdir -p "$DIR"
+fi
 
 B64="${1:-}"
 if [[ "$B64" == "-h" || "$B64" == "--help" ]]; then
   echo "Usage: $0 '<base64-of-full-wg-conf>' | $0 -" >&2
+  echo "  curl -fsSL …/install-wg-home.sh -o /tmp/install-wg-home.sh && bash /tmp/install-wg-home.sh \"\$(base64 -w0 conf)\" && /tmp/wg-up.sh" >&2
   exit 1
 fi
 if [[ "$B64" == "-" || -z "$B64" ]]; then
